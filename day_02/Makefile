@@ -12,3 +12,8 @@ install:img
 clean:
 	@-rm ipl.bin
 	@-rm boot.img
+	
+commit:clean
+	git add .
+	git commit -a
+	

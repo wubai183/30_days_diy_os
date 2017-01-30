@@ -48,13 +48,16 @@ entry:
 	MOV CH, 0			;磁道号的低8位数,柱面号
 	MOV CL, 2			;低5位放入所读起始扇区号，位7-6表示磁道号的高2位
 
-	INT 0x13
+	INT 0x13			;读取磁盘数据
 
-	JC error
-	JMP okmsg
+	JC error			;如果读取失败，则显示错误信息
+	
+	MOV SI, okmsg		;否则显示OK信息
+	JMP putloop
 
 error:	
 	MOV SI, msg			;加载msg段的第一个字节内容到SI中
+	JMP putloop
 
 ;以下这段代码翻译为C语言如下
 ; while(1){
