@@ -37,25 +37,45 @@ entry:
 	MOV ES, AX
 
 
+	MOV AX, 0x0820
+	MOV ES, AX
+	MOV BX, 0			;设置ES:BX,读出数据的缓冲区地址
+	
+	MOV DH, 0			;磁头0
+	MOV CH, 0			;柱面0
+	MOV CL, 2			;扇面2
+
+;循环读取到18扇区，每成功读取一个扇区后，CL值增1
+load_loop:
 ;当读取失败时总共会重新读取10次，10次后仍失败则显示错误信息
 	MOV SI, 0			;设置错误次数为0
 	
 ;尝试读取0磁盘号0磁头0柱面2扇区的内容
 try_load:
-	MOV AX, 0x0820
-	MOV ES, AX
+	;MOV AX, 0x0820
+	;MOV ES, AX
 	MOV BX, 0			;设置ES:BX,读出数据的缓冲区地址
 	
 	MOV AL, 1			;设置要读的扇区数目
 	MOV DL, 0x00		;需要进行读操作的驱动器号,A驱动器
-	MOV DH, 0			;所读磁盘的磁头号
-	MOV CH, 0			;磁道号的低8位数,柱面号
-	MOV CL, 2			;低5位放入所读起始扇区号，位7-6表示磁道号的高2位
+	;MOV DH, 0			;所读磁盘的磁头号
+	;MOV CH, 0			;磁道号的低8位数,柱面号
+	;MOV CL, 2			;低5位放入所读起始扇区号，位7-6表示磁道号的高2位
 	MOV AH, 0x02		;指明调用读扇区功能
 	INT 0x13			;读取磁盘数据
 	
 	JC catch_error		;处理读取失败
-	JMP load_ok			;成功读取，则显示OK信息
+;成功读取一个扇区后,先比较CL的值是否大于18
+;如果需要继续读取下一个扇区时,需要先设置数据缓冲区偏移地址
+	MOV AX, ES
+	ADD AX, 0x0020
+	MOV ES, AX			;偏移缓存地址位置0x200(512字节)
+	
+	ADD CL, 1
+	CMP CL, 18
+	JBE load_loop		;while(CL < 18) goto load_loop;
+	
+	JMP load_ok			;成功读取到18扇区，显示ok消息
 
 catch_error:
 	ADD SI, 1			;错误次数+1
