@@ -45,12 +45,13 @@ entry:
 	MOV CH, 0			;柱面0
 	MOV CL, 2			;扇面2
 
-;循环读取到18扇区，每成功读取一个扇区后，CL值增1
+	CYLS EQU 10			;定义常量10个柱面
+;从0磁盘号0柱面0磁头2扇区开始连续读取10个柱面的数据
 load_loop:
 ;当读取失败时总共会重新读取10次，10次后仍失败则显示错误信息
 	MOV SI, 0			;设置错误次数为0
 	
-;尝试读取0磁盘号0磁头0柱面2扇区的内容
+;尝试读取一个扇区的内容
 try_load:
 	;MOV AX, 0x0820
 	;MOV ES, AX
@@ -65,6 +66,8 @@ try_load:
 	INT 0x13			;读取磁盘数据
 	
 	JC catch_error		;处理读取失败
+	
+next:
 ;成功读取一个扇区后,先比较CL的值是否大于18
 ;如果需要继续读取下一个扇区时,需要先设置数据缓冲区偏移地址
 	MOV AX, ES
@@ -72,14 +75,24 @@ try_load:
 	MOV ES, AX			;偏移缓存地址位置0x200(512字节)
 	
 	ADD CL, 1
-	CMP CL, 18
-	JBE load_loop		;while(CL < 18) goto load_loop;
+	CMP CL, 18			;if(CL <= 18)
+	JBE load_loop		; goto load_loop;
+	
+	MOV CL, 1			;要读取下一个磁头的扇区1
+	ADD DH, 1
+	CMP DH, 2			;if(DH < 2)
+	JB load_loop		; goto load_loop;
+	
+	MOV DH, 0			;翻转磁头，磁头只有0或者1
+	ADD CH, 1			;柱面号增1
+	CMP CH, CYLS		;if(CH < CYLS)
+	JB load_loop		; goto load_loop;
 	
 	JMP load_ok			;成功读取到18扇区，显示ok消息
 
 catch_error:
 	ADD SI, 1			;错误次数+1
-	CMP SI, 10			;如果错误次数大于10，则显示错误信息
+	CMP SI, 10			;如果错误次数大于或等于10，则显示错误信息
 	JAE load_error
 	
 	MOV AH, 0x00		;调用中断0x13,AH=0x00重置磁盘驱动
@@ -143,7 +156,7 @@ okmsg:
 	DB "OK!!"
 	DB 0x0a
 	DB 0
-	
+		
 ;填充0，nop
 TIMES 0x1fe-($-$$) DB 0
 
