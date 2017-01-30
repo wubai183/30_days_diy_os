@@ -21,8 +21,8 @@
 	DD 2880				; 重写一次磁盘大小,扇区数
 	DB 0,0,0X29			; 中断13的驱动器号, 未用字段, 扩展引用标记(必须是29h)
 	DD 0XFFFFFFFF		; 卷序列号
-	DB "HELLO-OS   "	; 卷标名称
-	DB "FAT12   "		; 文件系统类型
+	DB "HELLO-OS   "	; 卷标名称(必须是11字节)
+	DB "FAT12   "		; 文件系统类型(必须是8字节)
 
 ;以下是引导代码、数据及其他填充字符
 ; 先空出18字节
@@ -36,28 +36,45 @@ entry:
 	MOV DS, AX
 	MOV ES, AX
 
-;读取0磁盘号0磁头0柱面2扇区的内容
+
+;当读取失败时总共会重新读取10次，10次后仍失败则显示错误信息
+	MOV SI, 0			;设置错误次数为0
+	
+;尝试读取0磁盘号0磁头0柱面2扇区的内容
+try_load:
 	MOV AX, 0x0820
 	MOV ES, AX
 	MOV BX, 0			;设置ES:BX,读出数据的缓冲区地址
 	
-	MOV AH, 0x02		;指明调用读扇区功能
 	MOV AL, 1			;设置要读的扇区数目
 	MOV DL, 0x00		;需要进行读操作的驱动器号,A驱动器
 	MOV DH, 0			;所读磁盘的磁头号
 	MOV CH, 0			;磁道号的低8位数,柱面号
 	MOV CL, 2			;低5位放入所读起始扇区号，位7-6表示磁道号的高2位
-
+	MOV AH, 0x02		;指明调用读扇区功能
 	INT 0x13			;读取磁盘数据
-
-	JC error			;如果读取失败，则显示错误信息
 	
-	MOV SI, okmsg		;否则显示OK信息
-	JMP putloop
+	JC catch_error		;处理读取失败
+	JMP load_ok			;成功读取，则显示OK信息
 
-error:	
+catch_error:
+	ADD SI, 1			;错误次数+1
+	CMP SI, 10			;如果错误次数大于10，则显示错误信息
+	JAE load_error
+	
+	MOV AH, 0x00		;调用中断0x13,AH=0x00重置磁盘驱动
+	MOV DL, 0x00
+	INT 0x13
+	
+	JMP try_load		;尝试再一次读取
+	
+load_error:	
 	MOV SI, msg			;加载msg段的第一个字节内容到SI中
-	JMP putloop
+	JMP display_msg
+
+load_ok:
+	MOV SI, okmsg
+	JMP display_msg
 
 ;以下这段代码翻译为C语言如下
 ; while(1){
@@ -73,7 +90,8 @@ error:
 ;		AX,		//低位为要显示的字符，高位为0x0e
 ;		BX);	//显示颜色
 ; }
-putloop:
+;将SI指向的地址的内容显示到屏幕上，直到读取到0为止
+display_msg:
 	MOV AL, [SI]
 	ADD SI, 1			;给SI累加
 	CMP AL, 0
@@ -83,7 +101,7 @@ putloop:
 	MOV BX, 15			;指定字符颜色
 	INT 0x10			;调用显卡BIOS
 	
-	JMP putloop;
+	JMP display_msg;
 	
 ;以下这段代码翻译为C语言如下
 ; while (1){
@@ -96,7 +114,7 @@ fin:
 msg:
 	;显示信息
 	DB 0X0A, 0X0A		; 2个换行
-	DB "FATAL ERROR!!"	; 显示信息
+	DB "ERROR!!"	; 显示信息
 	DB 0X0A				; 换行
 	DB 0
 
