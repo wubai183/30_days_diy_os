@@ -106,8 +106,9 @@ load_error:
 	JMP display_msg
 
 load_ok:
-	MOV SI, okmsg
-	JMP display_msg
+	;MOV SI, okmsg
+	;JMP display_msg
+	JMP 0xc200			;执行hlt.sys
 
 ;以下这段代码翻译为C语言如下
 ; while(1){
